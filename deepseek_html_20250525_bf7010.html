@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Red Cube Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            user-select: none;
+        }
+        #gameCanvas {
+            display: block;
+            background-color: #f0f0f0;
+        }
+        #ui-top {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        #ui-bottom {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        #leaderboard {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #leaderboard h2 {
+            margin-top: 0;
+            text-align: center;
+        }
+        #leaderboard ol {
+            padding-left: 20px;
+        }
+        #leaderboard li {
+            margin: 5px 0;
+        }
+        .upgradeBtn {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .upgradeBtn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        #nameChangeBtn {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        #leaderboardBtn {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background: #FF9800;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        #nameInput {
+            margin-top: 10px;
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+            display: none;
+        }
+        #playerRank {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .highlight {
+            background-color: #fffacd;
+            font-weight: bold;
+        }
+        #performanceTips {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+            max-width: 300px;
+            display: none;
+        }
+        #toggleTips {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background: #9C27B0;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-top">
+        <div>Player: <span id="playerName">player</span></div>
+        <div>Red cubes: <span id="redCubesDisplay">0</span></div>
+        <div>Points per click: <span id="pointsDisplay">1</span></div>
+        <button id="upgradeBtn" class="upgradeBtn">Upgrade (+1 point for <span id="upgradeCost">50</span> cubes)</button>
+        <button id="nameChangeBtn">Change name</button>
+        <input type="text" id="nameInput" placeholder="Enter new name">
+        <button id="leaderboardBtn" disabled>Leaderboard</button>
+        <div id="playerRank">Your rank: -</div>
+    </div>
+    <div id="ui-bottom">
+        <div>Auto-generation: <span id="secondDisplay">0</span>/sec</div>
+        <button id="autoUpgradeBtn" class="upgradeBtn">Auto-upgrade (+1/sec for <span id="autoUpgradeCost">150</span> cubes)</button>
+    </div>
+
+    <div id="leaderboard">
+        <h2>Top 10 Players</h2>
+        <ol id="leaderboardList"></ol>
+    </div>
+
+    <button id="toggleTips">Performance Tips</button>
+    <div id="performanceTips">
+        <h3>If game runs slowly:</h3>
+        <ol>
+            <li><strong>Use Chrome/Firefox</strong> - they have better performance</li>
+            <li><strong>Close other tabs</strong> - frees up memory</li>
+            <li><strong>Disable extensions</strong> - some may slow down games</li>
+            <li><strong>Update browser</strong> - newer versions run better</li>
+            <li><strong>Try incognito mode</strong> - cleaner environment</li>
+        </ol>
+        <p>The game should work perfectly when run directly from browser (not via link preview)</p>
+    </div>
+
+    <script>
+        // Initialize elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const redCubesDisplay = document.getElementById('redCubesDisplay');
+        const pointsDisplay = document.getElementById('pointsDisplay');
+        const secondDisplay = document.getElementById('secondDisplay');
+        const playerNameDisplay = document.getElementById('playerName');
+        const upgradeBtn = document.getElementById('upgradeBtn');
+        const autoUpgradeBtn = document.getElementById('autoUpgradeBtn');
+        const upgradeCostDisplay = document.getElementById('upgradeCost');
+        const autoUpgradeCostDisplay = document.getElementById('autoUpgradeCost');
+        const nameChangeBtn = document.getElementById('nameChangeBtn');
+        const nameInput = document.getElementById('nameInput');
+        const leaderboardBtn = document.getElementById('leaderboardBtn');
+        const leaderboard = document.getElementById('leaderboard');
+        const leaderboardList = document.getElementById('leaderboardList');
+        const playerRankDisplay = document.getElementById('playerRank');
+        const performanceTips = document.getElementById('performanceTips');
+        const toggleTips = document.getElementById('toggleTips');
+
+        // Set canvas size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Game variables
+        let red_cubes = 0;
+        let points = 1;
+        let second = 0;
+        let upgrade_cost = 50;
+        let auto_upgrade_cost = 150;
+        let player_name = "player";
+        let player_id = null;
+        let cube = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height / 2 - 25,
+            size: 50,
+            color: 'red',
+            isDragging: false,
+            offsetX: 0,
+            offsetY: 0
+        };
+
+        // Timers
+        let gameTimer;
+        let autoGenerationTimer;
+
+        // Generate unique player ID
+        function generatePlayerId() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Load saved data
+        function loadGame() {
+            const savedData = localStorage.getItem('cubeGameData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                red_cubes = data.red_cubes || 0;
+                points = data.points || 1;
+                second = data.second || 0;
+                upgrade_cost = data.upgrade_cost || 50;
+                auto_upgrade_cost = data.auto_upgrade_cost || 150;
+                player_name = data.player_name || "player";
+                player_id = data.player_id || generatePlayerId();
+                updateUI();
+                updateLeaderboardBtn();
+                updatePlayerRank();
+            } else {
+                player_id = generatePlayerId();
+            }
+        }
+
+        // Save game data
+        function saveGame() {
+            const gameData = {
+                red_cubes: red_cubes,
+                points: points,
+                second: second,
+                upgrade_cost: upgrade_cost,
+                auto_upgrade_cost: auto_upgrade_cost,
+                player_name: player_name,
+                player_id: player_id
+            };
+            localStorage.setItem('cubeGameData', JSON.stringify(gameData));
+            saveToLeaderboard();
+            updatePlayerRank();
+        }
+
+        // Save to leaderboard
+        function saveToLeaderboard() {
+            if (player_name === "player") return;
+            
+            let leaderboardData = JSON.parse(localStorage.getItem('leaderboardData')) || [];
+            
+            // Check if player exists
+            const playerIndex = leaderboardData.findIndex(player => player.id === player_id);
+            
+            if (playerIndex !== -1) {
+                // Update existing record
+                leaderboardData[playerIndex].name = player_name;
+                leaderboardData[playerIndex].score = Math.max(leaderboardData[playerIndex].score, red_cubes);
+            } else {
+                // Add new player
+                leaderboardData.push({
+                    id: player_id,
+                    name: player_name,
+                    score: red_cubes
+                });
+            }
+            
+            // Sort by score
+            leaderboardData.sort((a, b) => b.score - a.score);
+            
+            localStorage.setItem('leaderboardData', JSON.stringify(leaderboardData));
+        }
+
+        // Update leaderboard button state
+        function updateLeaderboardBtn() {
+            leaderboardBtn.disabled = player_name === "player";
+        }
+
+        // Update player rank display
+        function updatePlayerRank() {
+            const leaderboardData = JSON.parse(localStorage.getItem('leaderboardData')) || [];
+            const playerIndex = leaderboardData.findIndex(player => player.id === player_id);
+            
+            if (playerIndex !== -1) {
+                playerRankDisplay.textContent = `Your rank: ${playerIndex + 1}`;
+            } else if (player_name !== "player") {
+                // Calculate global position if not in top list
+                const allPlayers = [...leaderboardData];
+                allPlayers.push({id: player_id, name: player_name, score: red_cubes});
+                allPlayers.sort((a, b) => b.score - a.score);
+                const globalIndex = allPlayers.findIndex(player => player.id === player_id);
+                playerRankDisplay.textContent = `Your rank: ${globalIndex + 1}`;
+            } else {
+                playerRankDisplay.textContent = `Your rank: -`;
+            }
+        }
+
+        // Show leaderboard
+        function showLeaderboard() {
+            const leaderboardData = JSON.parse(localStorage.getItem('leaderboardData')) || [];
+            leaderboardList.innerHTML = '';
+            
+            if (leaderboardData.length === 0) {
+                leaderboardList.innerHTML = '<li>No data yet</li>';
+            } else {
+                leaderboardData.slice(0, 10).forEach((player, index) => {
+                    const li = document.createElement('li');
+                    li.textContent = `${index + 1}. ${player.name}: ${player.score} cubes`;
+                    if (player.id === player_id) {
+                        li.classList.add('highlight');
+                    }
+                    leaderboardList.appendChild(li);
+                });
+            }
+            
+            leaderboard.style.display = 'block';
+        }
+
+        // Update UI
+        function updateUI() {
+            redCubesDisplay.textContent = red_cubes;
+            pointsDisplay.textContent = points;
+            secondDisplay.textContent = second;
+            upgradeCostDisplay.textContent = upgrade_cost;
+            autoUpgradeCostDisplay.textContent = auto_upgrade_cost;
+            playerNameDisplay.textContent = player_name;
+            upgradeBtn.disabled = red_cubes < upgrade_cost;
+            autoUpgradeBtn.disabled = red_cubes < auto_upgrade_cost;
+        }
+
+        // Draw cube
+        function drawCube() {
+            ctx.fillStyle = cube.color;
+            ctx.fillRect(cube.x, cube.y, cube.size, cube.size);
+        }
+
+        // Check if cursor is in cube
+        function isCursorInCube(x, y) {
+            return x > cube.x && x < cube.x + cube.size &&
+                   y > cube.y && y < cube.y + cube.size;
+        }
+
+        // Event listeners
+        canvas.addEventListener('mousedown', (e) => {
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+            
+            if (isCursorInCube(mouseX, mouseY)) {
+                cube.isDragging = true;
+                cube.offsetX = mouseX - cube.x;
+                cube.offsetY = mouseY - cube.y;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (cube.isDragging) {
+                cube.x = e.clientX - cube.offsetX;
+                cube.y = e.clientY - cube.offsetY;
+                
+                cube.x = Math.max(0, Math.min(cube.x, canvas.width - cube.size));
+                cube.y = Math.max(0, Math.min(cube.y, canvas.height - cube.size));
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            cube.isDragging = false;
+        });
+
+        // Touch events for mobile
+        canvas.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            const mouseX = touch.clientX;
+            const mouseY = touch.clientY;
+            
+            if (isCursorInCube(mouseX, mouseY)) {
+                cube.isDragging = true;
+                cube.offsetX = mouseX - cube.x;
+                cube.offsetY = mouseY - cube.y;
+                e.preventDefault();
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (cube.isDragging) {
+                const touch = e.touches[0];
+                cube.x = touch.clientX - cube.offsetX;
+                cube.y = touch.clientY - cube.offsetY;
+                
+                cube.x = Math.max(0, Math.min(cube.x, canvas.width - cube.size));
+                cube.y = Math.max(0, Math.min(cube.y, canvas.height - cube.size));
+                e.preventDefault();
+            }
+        });
+
+        canvas.addEventListener('touchend', () => {
+            cube.isDragging = false;
+        });
+
+        // Upgrade button (manual)
+        upgradeBtn.addEventListener('click', () => {
+            if (red_cubes >= upgrade_cost) {
+                red_cubes -= upgrade_cost;
+                points += 1;
+                upgrade_cost += 50;
+                updateUI();
+                saveGame();
+            }
+        });
+
+        // Upgrade button (auto)
+        autoUpgradeBtn.addEventListener('click', () => {
+            if (red_cubes >= auto_upgrade_cost) {
+                red_cubes -= auto_upgrade_cost;
+                second += 1;
+                auto_upgrade_cost += 50;
+                updateUI();
+                saveGame();
+            }
+        });
+
+        // Name change button
+        nameChangeBtn.addEventListener('click', () => {
+            nameInput.style.display = nameInput.style.display === 'none' ? 'block' : 'none';
+            if (nameInput.style.display === 'block') {
+                nameInput.focus();
+            }
+        });
+
+        // Name input
+        nameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const newName = nameInput.value.trim();
+                if (newName.length > 0 && newName !== player_name) {
+                    player_name = newName;
+                    nameInput.value = '';
+                    nameInput.style.display = 'none';
+                    updateUI();
+                    updateLeaderboardBtn();
+                    saveGame();
+                }
+            }
+        });
+
+        // Leaderboard button
+        leaderboardBtn.addEventListener('click', () => {
+            if (leaderboard.style.display === 'block') {
+                leaderboard.style.display = 'none';
+            } else {
+                showLeaderboard();
+            }
+        });
+
+        // Close leaderboard when clicking outside
+        document.addEventListener('click', (e) => {
+            if (leaderboard.style.display === 'block' && 
+                !leaderboard.contains(e.target) && 
+                e.target !== leaderboardBtn) {
+                leaderboard.style.display = 'none';
+            }
+        });
+
+        // Toggle performance tips
+        toggleTips.addEventListener('click', () => {
+            performanceTips.style.display = performanceTips.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Auto-generation of cubes
+        function startAutoGeneration() {
+            autoGenerationTimer = setInterval(() => {
+                if (second > 0) {
+                    red_cubes += second;
+                    updateUI();
+                    saveGame();
+                }
+            }, 1000);
+        }
+
+        // Game loop
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawCube();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Drag timer
+        function startDragTimer() {
+            gameTimer = setInterval(() => {
+                if (cube.isDragging) {
+                    red_cubes += points;
+                    updateUI();
+                    saveGame();
+                }
+            }, 1000);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Start game
+        loadGame();
+        gameLoop();
+        startDragTimer();
+        startAutoGeneration();
+
+        // Save on window close
+        window.addEventListener('beforeunload', saveGame);
+    </script>
+</body>
+</html>
